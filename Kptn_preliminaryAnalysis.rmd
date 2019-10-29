@@ -1,0 +1,256 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+---
+### Test Preliminary analysis
+
+---
+  title: "Single Nucleus Sequencing Trial Quality Control and Analysis"
+output:
+  html_document: default
+github_document: default
+---
+  
+```{r include = FALSE}
+### Load data and packages
+
+knitr::opts_chunk$set(fig.width=12, fig.height=8) 
+
+```
+
+
+```{r, include = FALSE, message = FALSE, warning = FALSE, cache = FALSE}
+library(Seurat)
+require(gplots)
+require(ComplexHeatmap)
+```
+
+```{r, include = TRUE, message = FALSE, warning = FALSE, cache = FALSE}
+
+setwd('/home/jovyan/MH_DDD/')
+
+tab = read.delim('../data/KptnMouse/RNAscope/IntensityInNuclei/Objects_Population - Nuclei.txt', sep = '\t', skip = 9)
+tab = tab[order(-tab$Position.Y..µm.),]
+```
+
+Remove too large (doublets) and  too small (partial) nuclei:
+
+```{r, include = TRUE, message = FALSE, warning = FALSE, cache = FALSE}
+
+hist(tab$Nuclei...Nucleus.Volume..µm.., breaks = 100, main = 'Nuclei Volume histogram before filtering')
+plot(tab$Position.Y..µm., tab$Position.X..µm., pch = '.', main = 'Nuclei position before filtering')
+keep = tab$Nuclei...Nucleus.Volume..µm.. < 4000
+print(sum(keep)/dim(tab)[1])
+tab = tab[keep,]
+keep = tab$Nuclei...Nucleus.Volume..µm.. > 0
+print(sum(keep)/dim(tab)[1])
+tab = tab[keep,]
+hist(tab$Nuclei...Nucleus.Volume..µm.., breaks = 100, main = 'Nuclei Volume histogram after filtering')
+plot(tab$Position.Y..µm., tab$Position.X..µm., pch = '.', main = 'Nuclei position after filtering')
+
+```
+
+Make 1D histogram plots of intensity (sum, mean or normalized sum) within nuclei for one field in the first section only:
+
+```{r, include = TRUE, message = FALSE, warning = FALSE, cache = FALSE}
+
+sectionNumber = rep(0, dim(tab)[1])
+count = 1
+sectionNumber[1] = count
+for (i in 2:dim(tab)){
+if (abs(tab$Position.Y..µm.[i] - tab$Position.Y..µm.[i-1]) > 1000){count = count + 1}
+sectionNumber[i] = count
+}
+
+section = 1
+print(table(tab$Field))
+field = c(50)
+
+meanIntensity_singleField = as.matrix(tab[fieldNumber %in% field,c('Nuclei...Intensity.Nucleus.Atto.490LS.Mean', 'Nuclei...Intensity.Nucleus.Atto.425.Mean',
+                         'Nuclei...Intensity.Nucleus.Alexa.488.Mean', 'Nuclei...Intensity.Nucleus.Alexa.568.Mean',
+                         'Nuclei...Intensity.Nucleus.Alexa.647.Mean')])
+sumIntensity_singleField = as.matrix(tab[fieldNumber %in% field,c('Nuclei...Intensity.Nucleus.Atto.490LS.Sum', 'Nuclei...Intensity.Nucleus.Atto.425.Sum',
+                         'Nuclei...Intensity.Nucleus.Alexa.488.Sum', 'Nuclei...Intensity.Nucleus.Alexa.568.Sum',
+                         'Nuclei...Intensity.Nucleus.Alexa.647.Sum')])
+normSumIntensity_singleField = sumIntensity_singleField/rowSums(sumIntensity_singleField)
+
+names(meanIntensity_singleField) = names(sumIntensity_singleField) = names(normSumIntensity_singleField) = tab$Object.No[fieldNumber == field]
+
+channels = c('490LS', '425', '488', '568', '647')
+for (i in 1:length(channels)){
+par(mfrow = c(1,3))
+hist(meanIntensity_singleField[, i], 25, main = paste('Histogram of', channels[i], 'Mean Log-Intensity'))
+hist(sumIntensity_singleField[, i], 25, main = paste('Histogram of', channels[i], 'Log-Intensity Sum'))
+hist(normSumIntensity_singleField[, i], 25, main = paste('Histogram of', channels[i], 'Normalized Intensity Sum'))
+}
+
+channels = c('490LS', '425', '488', '568', '647')
+for (i in 1:length(channels)){
+par(mfrow = c(1,3))
+plot(1:length(meanIntensity_singleField[,i]), meanIntensity_singleField[, i], main = paste('Histogram of', channels[i], 'Mean Log-Intensity'), pch = '.')
+plot(1:length(sumIntensity_singleField[,i]), sumIntensity_singleField[, i], main = paste('Histogram of', channels[i], 'Log-Intensity Sum'), pch = '.')
+plot(1:length(normSumIntensity_singleField[, i]), normSumIntensity_singleField[,i], main = paste('Histogram of', channels[i], 'Normalized Intensity Sum'), pch = '.')
+}
+
+par(mfrow = c(1,5))
+for (i in 1:length(channels)){
+plot(1:length(meanIntensity_singleField[,i]), meanIntensity_singleField[, i], main = paste(channels[i]), pch = '.')
+}
+
+channels = c('490LS', '425', '488', '568', '647')
+for (i in 1:length(channels)){
+par(mfrow = c(1,3))
+hist(log(meanIntensity_singleField[, i],2), 25, main = paste('Histogram of', channels[i], 'Mean Log-Intensity'))
+hist(log(sumIntensity_singleField[, i],2), 25, main = paste('Histogram of', channels[i], 'Log-Intensity Sum'))
+hist(log(normSumIntensity_singleField[, i],2), 25, main = paste('Histogram of', channels[i], 'Normalized Intensity Sum'))
+}
+
+channels = c('490LS', '425', '488', '568', '647')
+for (i in 1:length(channels)){
+par(mfrow = c(1,3))
+plot(1:length(meanIntensity_singleField[,i]), log(meanIntensity_singleField[, i],2), main = paste('Histogram of', channels[i], 'Mean Log-Intensity'), pch = '.')
+plot(1:length(sumIntensity_singleField[,i]), log(sumIntensity_singleField[, i],2), main = paste('Histogram of', channels[i], 'Log-Intensity Sum'), pch = '.')
+plot(1:length(normSumIntensity_singleField[, i]), log(normSumIntensity_singleField[,i],2), main = paste('Histogram of', channels[i], 'Normalized Intensity Sum'), pch = '.')
+}
+
+par(mfrow = c(1,5))
+for (i in 1:length(channels)){
+plot(1:length(meanIntensity_singleField[,i]), log(meanIntensity_singleField[, i],2), main = paste(channels[i]), pch = '.')
+}
+
+```
+
+Make 2D histogram for the whole section:
+
+```{r, include = TRUE, message = FALSE, warning = FALSE, cache = FALSE}
+
+fieldNumber = tab$Field
+print(table(fieldNumber))
+
+meanIntensity = as.matrix(tab[sectionNumber == section,c('Nuclei...Intensity.Nucleus.Atto.490LS.Mean', 'Nuclei...Intensity.Nucleus.Atto.425.Mean',
+                         'Nuclei...Intensity.Nucleus.Alexa.488.Mean', 'Nuclei...Intensity.Nucleus.Alexa.568.Mean',
+                         'Nuclei...Intensity.Nucleus.Alexa.647.Mean')])
+sumIntensity = as.matrix(tab[sectionNumber == section,c('Nuclei...Intensity.Nucleus.Atto.490LS.Sum', 'Nuclei...Intensity.Nucleus.Atto.425.Sum',
+                         'Nuclei...Intensity.Nucleus.Alexa.488.Sum', 'Nuclei...Intensity.Nucleus.Alexa.568.Sum',
+                         'Nuclei...Intensity.Nucleus.Alexa.647.Sum')])
+normSumIntensity = sumIntensity/rowSums(sumIntensity)
+
+
+names(meanIntensity) = names(sumIntensity) = names(normSumIntensity) = tab$Field[sectionNumber == section]
+
+channels = c('490LS', '425', '488', '568', '647')
+for (i in 1:length(channels)){
+par(mfrow = c(1,3))
+hist(meanIntensity[, i], 100, main = paste('Histogram of', channels[i], 'Mean Log-Intensity'))
+hist(sumIntensity[, i], 100, main = paste('Histogram of', channels[i], 'Log-Intensity Sum'))
+hist(normSumIntensity[, i], 100, main = paste('Histogram of', channels[i], 'Normalized Intensity Sum'))
+}
+
+for (i in 1:length(channels)){
+par(mfrow = c(1,3))
+plot(1:length(meanIntensity[,i]), meanIntensity[, i], main = paste('Histogram of', channels[i], 'Mean Log-Intensity'), pch = '.')
+plot(1:length(sumIntensity[,i]), sumIntensity[, i], main = paste('Histogram of', channels[i], 'Log-Intensity Sum'), pch = '.')
+plot(1:length(normSumIntensity[, i]), normSumIntensity[,i], main = paste('Histogram of', channels[i], 'Normalized Intensity Sum'), pch = '.')
+}
+
+par(mfrow = c(1,5))
+for (i in 1:length(channels)){
+plot(1:length(meanIntensity[,i]), meanIntensity[, i], main = paste(channels[i]), pch = '.')
+}
+
+```
+
+Now make 2D histograms and scatter plots for each combination of channels:
+
+```{r, include = TRUE, message = FALSE, warning = FALSE, cache = FALSE}
+
+par(mfrow = c(5,5), mar=c(2,2,2,2))
+for (i in 1:dim(meanIntensity)[2]){
+  for (j in 1:dim(meanIntensity)[2]){
+    hist2d(meanIntensity[, c(i,j)], xlab = channels[i], ylab = channels[j], bins = 50,
+           main = paste(channels[i], 'vs.', channels[j]))
+  }
+}
+
+par(mfrow = c(5,5), mar=c(2,2,2,2))
+for (i in 1:dim(meanIntensity)[2]){
+  for (j in 1:dim(meanIntensity)[2]){
+    plot(meanIntensity[, i], meanIntensity[,j], xlab = channels[i], ylab = channels[j], bins = 50,
+           main = paste(channels[i], 'vs.', channels[j]), pch = '.')
+  }
+}
+
+par(mfrow = c(5,5), mar=c(2,2,2,2))
+for (i in 1:dim(meanIntensity)[2]){
+  for (j in 1:dim(meanIntensity)[2]){
+    plot(meanIntensity_singleField[, i], meanIntensity_singleField[,j], xlab = channels[i], ylab = channels[j], bins = 50,
+           main = paste(channels[i], 'vs.', channels[j]), pch = '.')
+  }
+}
+
+```
+
+See to what extent we can see some basic clusters in UMAP and hierarchical clustering:
+
+```{r, include = TRUE, message = FALSE, warning = FALSE, cache = FALSE}
+
+# intensityTab = CreateSeuratObject(log(t(meanIntensity),2))
+# 
+# intensityTab = ScaleData(intensityTab)
+# intensityTab = RunPCA(intensityTab, features = c('Nuclei...Intensity.Nucleus.Atto.490LS.Mean', 'Nuclei...Intensity.Nucleus.Atto.425.Mean',
+#                          'Nuclei...Intensity.Nucleus.Alexa.488.Mean', 'Nuclei...Intensity.Nucleus.Alexa.568.Mean',
+#                          'Nuclei...Intensity.Nucleus.Alexa.647.Mean'))
+# intensityTab = RunUMAP(intensityTab, dims = 1:4)
+# UMAPPlot(intensityTab)
+# PCAPlot(intensityTab)
+# featurePlots = list()
+# intensityFeatures = c('Nuclei...Intensity.Nucleus.Atto.490LS.Mean', 'Nuclei...Intensity.Nucleus.Atto.425.Mean',
+#                          'Nuclei...Intensity.Nucleus.Alexa.488.Mean', 'Nuclei...Intensity.Nucleus.Alexa.568.Mean',
+#                          'Nuclei...Intensity.Nucleus.Alexa.647.Mean')
+# for (i in 1:length(intensityFeatures)){
+#   print(i)
+#   featurePlots[[i]] = FeaturePlot(intensityTab, features = intensityFeatures[[i]])
+# }
+# p = cowplot::plot_grid(featurePlots[[1]], featurePlots[[2]], featurePlots[[3]], featurePlots[[4]], 
+#                        featurePlots[[5]])
+
+
+Heatmap(meanIntensity)
+
+```
+
+
+Try out flowClust for clustering data into cell types:
+
+```{r, include = TRUE, message = FALSE, warning = FALSE, cache = FALSE}
+
+require(flowClust)
+
+varNames = c('Nuclei...Intensity.Nucleus.Atto.490LS.Mean', 'Nuclei...Intensity.Nucleus.Atto.425.Mean',
+                          'Nuclei...Intensity.Nucleus.Alexa.488.Mean', 'Nuclei...Intensity.Nucleus.Alexa.568.Mean',
+                         'Nuclei...Intensity.Nucleus.Alexa.647.Mean')
+
+par(mfrow = c(5,5), mar = c(1,1,1,1))
+for (i in 1:length(varNames)){
+  for (j in 1:length(varNames)){
+    if (i != j){
+          res2 <-
+    flowClust(
+        meanIntensity_singleField,
+        varNames = varNames[c(i,j)],
+        K = 3,
+        B = 100
+        )
+    ruleOutliers(res2) <- list(level = 1)
+    plot(res2,
+       data = meanIntensity_singleField,
+       level = 0.99,
+      z.cutoff = 0, subset = varNames[c(i,j)], ellipse = F, main = paste(channels[i], 'vs.', channels[j]))
+    }else{
+    plot(1:10,1:10)
+  }
+}
+}
+```
+
