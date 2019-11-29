@@ -20,6 +20,7 @@ from pymc3Distributions import logp_normal
 import pandas as pd
 from fnmatch import fnmatch
 import pickle
+import sys
 
 # Get all evaluation files:
 root = '../data/KptnMouse/RNAscope'
@@ -32,7 +33,11 @@ for path, subdirs, files in os.walk(root):
             allFiles.append(os.path.join(path, name))
             slideNames.append(str.split(allFiles[-1], '/')[4])
 
-for slide in range(35):            
+chunkID = sys.argv[1]
+chunkSize = 5
+chunks = [range(len(slideNames))[i:i + chunkSize] for i in range(0, len(slideNames), chunkSize)]              
+            
+for slide in chunks[int(chunkID)]:            
 
     # Import data:
     kptn_data_all = pd.read_csv(allFiles[slide], sep = '\t' , skiprows = 8, header = 1)
@@ -83,17 +88,23 @@ for slide in range(35):
     sectionNumber[0] = count
     for i in range(1, np.shape(kptn_data_log)[0]):
         if abs(kptn_data[i,1] - kptn_data[i-1,1]) > 1000:
-            count = count + 1
+            if sum(sectionNumber == count) > 5000:
+                count = count + 1
+            else:
+                sectionNumber[sectionNumber == count] = np.nan
         sectionNumber[i] = count
 
-    for section in np.unique(sectionNumber):
+    uniqueSectionNumbersWithNaN = np.unique(sectionNumber)    
+    uniqueSectionNumbers = uniqueSectionNumbersWithNaN[~np.isnan(uniqueSectionNumbersWithNaN)]
+        
+    for section in np.unique(uniqueSectionNumbers):
         # Save location of remaining nuclei:
         nucleiPositions = {"x_position": kptn_data[sectionNumber == section,0], "y_position": kptn_data[sectionNumber == section,1]}
-        pickle_out = open("data/" + slideNames[slide] + 'Section' + str(section) + '_NucleixyPositions.pickle',"wb")
+        pickle_out = open("data/" + slideNames[slide] + 'Section' + str(int(section)) + '_NucleixyPositions.pickle',"wb")
         pickle.dump(nucleiPositions, pickle_out)
         pickle_out.close()
 
-    for section in np.unique(sectionNumber):
+    for section in np.unique(uniqueSectionNumbers):
         fig = plt.figure()
         fig.set_size_inches(10, 10)
         plt.subplot(5, 1, 1)
@@ -112,7 +123,7 @@ for slide in range(35):
         plt.hist(kptn_data_log[sectionNumber == section,4], bins = 100)
         plt.gca().set_title('Intensity Distribution Channel ' + channelOrder[4])
         plt.show()
-        fig.savefig("figures/" + slideNames[slide] + "/" + "section" + str(section) + "_IntensityDistributions.png", bbox_inches='tight')
+        fig.savefig("figures/" + slideNames[slide] + "/" + "section" + str(int(section)) + "_IntensityDistributions.png", bbox_inches='tight')
         plt.close(fig) 
     
     # Run GaussianMixture model for each section and channel separatly:
@@ -122,15 +133,14 @@ for slide in range(35):
     dimensions = np.shape(data)[1]
     alpha = np.array(((2,1),(10,1), (10,1), (10,1), (2,1)))
 
-
-    for section in np.unique(sectionNumber):
+    for section in np.unique(uniqueSectionNumbers):
 
         for channel in range(5):
 
             with pm.Model() as model:
                 w = pm.Dirichlet('w', alpha[channel])
-                mus = pm.Normal('mu', mu = np.array((np.mean(data[sectionNumber == section,channel]) - 2, np.mean(data[sectionNumber == section, channel])+2)), sigma = np.array((1,1)), shape = 2)
-                sigmas = pm.Gamma('sigma', mu = np.array((0.33,1)), sigma = np.array((0.1,1)), shape = 2)
+                mus = pm.Normal('mu', mu = np.array((np.mean(np.sort(data[sectionNumber == section,channel])[:1000])+0.5, np.mean(np.sort(data[sectionNumber == section,channel])[:1000]) + 3)), sigma = np.array((0.33,1)), shape = 2)
+                sigmas = pm.Gamma('sigma', mu = np.array((0.1,1)), sigma = np.array((0.2,1)), shape = 2)
                 prior = sample_prior(samples = 1000)
                 x = pm.NormalMixture('x_obs', w, mus, sigma = sigmas, observed=data[sectionNumber == section,channel])
 
@@ -138,19 +148,19 @@ for slide in range(35):
             f = plt.figure()
             plt.hist(prior['mu'])
             plt.show()
-            f.savefig("figures/" + slideNames[slide] + "/" + "muPriorSection" + str(section) + "channel" + str(channel) + ".png", bbox_inches='tight')
+            f.savefig("figures/" + slideNames[slide] + "/" + "muPriorSection" + str(int(section)) + "channel" + str(channel) + ".png", bbox_inches='tight')
             plt.close(f) 
             
             f = plt.figure()
             plt.hist(prior['sigma'])
             plt.show()
-            f.savefig("figures/" + slideNames[slide] + "/" + "sigmaPriorSection" + str(section) + "channel" + str(channel) + ".png", bbox_inches='tight')
+            f.savefig("figures/" + slideNames[slide] + "/" + "sigmaPriorSection" + str(int(section)) + "channel" + str(channel) + ".png", bbox_inches='tight')
             plt.close(f) 
 
             f = plt.figure()
             plt.hist(prior['w'])
             plt.show()
-            f.savefig("figures/" + slideNames[slide] + "/" + "wPriorSection" + str(section) + "channel" + str(channel) + ".png", bbox_inches='tight')
+            f.savefig("figures/" + slideNames[slide] + "/" + "wPriorSection" + str(int(section)) + "channel" + str(channel) + ".png", bbox_inches='tight')
             plt.close(f) 
             
             # Sample:
@@ -159,7 +169,7 @@ for slide in range(35):
 
             # Fit:
             with model:
-                advi_fit = pm.fit(n=10000, obj_optimizer=pm.adagrad(learning_rate=1e-1), method = 'advi')  
+                advi_fit = pm.fit(n=3000, obj_optimizer=pm.adagrad(learning_rate=1e-1), method = 'advi')  
 
             # Show results MCMC
             #pm.traceplot(hmc_trace)
@@ -171,16 +181,16 @@ for slide in range(35):
                 {'log-ELBO': -np.log(advi_fit.hist),
                  'n': np.arange(advi_fit.hist.shape[0])})
             _ = sns.lineplot(y='log-ELBO', x='n', data=advi_elbo)
-            f.savefig("figures/" + slideNames[slide] + "/" + "adviElbo_Section" + str(section) + "_channel" + str(channel) + ".png", bbox_inches='tight')
+            f.savefig("figures/" + slideNames[slide] + "/" + "adviElbo_Section" + str(int(section)) + "_channel" + str(channel) + ".png", bbox_inches='tight')
             plt.close(f) 
             advi_trace = advi_fit.sample(10000)
             pm.summary(advi_trace, include_transformed=False)
-
+            
             # Save trace means:
-            advi_data = {"advi_mu_0": np.mean(advi_trace.get_values('mu')[:,0]), "advi_mu_1": np.mean(advi_trace.get_values('mu')[:,0]),
+            advi_data = {"advi_mu_0": np.mean(advi_trace.get_values('mu')[:,0]), "advi_mu_1": np.mean(advi_trace.get_values('mu')[:,1]),
                    "advi_sigma_0": np.mean(advi_trace.get_values('sigma')[:,0]), "advi_sigma_1": np.mean(advi_trace.get_values('sigma')[:,1]),
                    "advi_w_0": np.mean(advi_trace.get_values('w')[:,0]), "advi_w_1": np.mean(advi_trace.get_values('w')[:,1])}
-            pickle_out = open("data/" + slideNames[slide] + '_AdviFitResults.pickle',"wb")
+            pickle_out = open("data/" + slideNames[slide] + 'Section' + str(int(section)) + "Channel" + str(channel) +'_AdviFitResults.pickle',"wb")
             pickle.dump(advi_data, pickle_out)
             pickle_out.close()
 
@@ -212,21 +222,22 @@ for slide in range(35):
             maxProbs = [max(normalizedProbs[i]) for i in range(len(normalizedProbs))]
             classMembership = [np.argmax(normalizedProbs[i]) for i in range(len(normalizedProbs))]
             confidentClass = [2 if maxProbs[i] < confidenceThreshold else classMembership[i] for i in range(len(classMembership))]
-
+            # i.e. a value of 2 corresponds to a classification below our confidence threshold, unlike values 0 or 1
+            
             # Class membership probability:
-            pickle_out = open("data/" + slideNames[slide] + "Probability-" + celltypeOrder[channel] + '.pickle',"wb")
+            pickle_out = open("data/" + slideNames[slide] + 'Section' + str(int(section)) + "Probability-" + celltypeOrder[channel] + '.pickle',"wb")
             pickle.dump(normalizedProbs, pickle_out)
             pickle_out.close()
-
-            ### Plot results:
 
             # Histograms:
             if sum(np.array(confidentClass) == 1) > 0:
                 boundary1 = min(data[sectionNumber == section,channel][np.array(confidentClass) == 1])
+                # i.e. what's the minimum value to confidently classify a cell as positive for this marker?
             else:
                 boundary1 = np.inf
             if sum(np.array(confidentClass) == 2) > 0:
                 boundary2 = min(data[sectionNumber == section,channel][np.array(confidentClass) == 2])
+                # i.e. what's the minimum value to classify a cell into the 'unsure' category
             else:
                 boundary2 = 0
             fig = plt.figure()
@@ -234,11 +245,11 @@ for slide in range(35):
             N, bins, patches = ax.hist(data[sectionNumber == section,channel], edgecolor='white', linewidth=1, bins = 100)
             for i in range(0, len(patches)):
                 if bins[i] < boundary2:
-                    patches[i].set_facecolor('b')   
+                    patches[i].set_facecolor('blue')   
                 elif bins[i] < boundary1:
                     patches[i].set_facecolor('black')
                 else:
-                    patches[i].set_facecolor('r')
+                    patches[i].set_facecolor('red')
             plt.gca().set_title('Log Intensity and Classification Channel ' + channelOrder[channel])
             plt.show()
             fig.savefig("figures/" + slideNames[slide] + "/" + "HistogramIntensityAndClassification" + "Section" + str(section) + "channel" + str(channel) + ".png", bbox_inches='tight')
@@ -253,21 +264,21 @@ for slide in range(35):
             plt.scatter(kptn_data[sectionNumber == section,0], np.exp(data[sectionNumber == section,channel]), c = colours, s = 0.1)
             plt.gca().set_title('Intensity and Classification Channel ' + channelOrder[channel])
             plt.show()
-            fig.savefig("figures/" + slideNames[slide] + "/" + "ScatterPlotIntensityAndClassification" + "Section" + str(section) + "channel" + channelOrder[channel] + ".png", bbox_inches='tight')  
+            fig.savefig("figures/" + slideNames[slide] + "/" + "ScatterPlotIntensityAndClassification" + "Section" + str(int(section)) + "channel" + channelOrder[channel] + ".png", bbox_inches='tight')  
             plt.close(fig) 
             
             fig = plt.figure()                             
             plt.scatter(kptn_data[sectionNumber == section,0], data[sectionNumber == section,channel], c = colours, s = 0.1)                         
             plt.gca().set_title('Log Intensity and Classification Channel ' + channelOrder[channel])
             plt.show()
-            fig.savefig("figures/" + slideNames[slide] + "/" + "ScatterPlotLOGIntensityAndClassification" + "Section" + str(section) + "channel" + channelOrder[channel] + ".png", bbox_inches='tight')
+            fig.savefig("figures/" + slideNames[slide] + "/" + "ScatterPlotLOGIntensityAndClassification" + "Section" + str(int(section)) + "channel" + channelOrder[channel] + ".png", bbox_inches='tight')
             plt.close(fig) 
             
             # Slide location of each cell type (including unclassified):
 
             fig = plt.figure()   
             plt.scatter(kptn_data[sectionNumber == section,0][np.array(confidentClass) == 1], kptn_data[sectionNumber == section,1][np.array(confidentClass) == 1], s = 0.05)
-            plt.gca().set_title('Nuclei Positive Classification Slide  ' + str(slide) + " Section " + str(section) + " Channel " + channelOrder[channel] + ".png")
+            plt.gca().set_title('Nuclei Positive Classification Slide  ' + str(slide) + " Section " + str(int(section)) + " Channel " + channelOrder[channel] + ".png")
             plt.show()
-            fig.savefig("figures/" + slideNames[slide] + "/" + "PositiveClassificationPosition" + str(slide) + "section" + str(section) + "channel" + channelOrder[channel] + ".png", bbox_inches='tight')  
+            fig.savefig("figures/" + slideNames[slide] + "/" + "PositiveClassificationPosition" + str(slide) + "section" + str(int(section)) + "channel" + channelOrder[channel] + ".png", bbox_inches='tight')  
             plt.close(fig) 

@@ -20,6 +20,8 @@ from pymc3Distributions import logp_normal
 import pandas as pd
 from fnmatch import fnmatch
 import pickle
+import math as math
+import scipy.stats
 
 # Get all evaluation files:
 root = '../data/KptnMouse/RNAscope'
@@ -55,26 +57,6 @@ for slide in range(35):
     volumes = volumes[(volumes > minVol) & (volumes < maxVol)]
     kptn_data = kptn_data[kptn_data[:,1].argsort(),:]
     kptn_data_log = np.log2(kptn_data[:,2:])
-
-    f = plt.figure()
-    plt.subplot(1, 2, 1)
-    plt.title('Nuclei Position Slide ' + str(slide) + ' Before and After Filtering')
-    plt.scatter(kptn_data_all['Position X [µm]'], kptn_data_all['Position Y [µm]'], s = 0.05)
-    plt.subplot(1, 2, 2)
-    plt.scatter(kptn_data[:,0], kptn_data[:,1], s = 0.05)
-    plt.show()
-    f.savefig("figures/" + slideNames[slide] + "/_NucleiPosition.png", bbox_inches='tight')
-    plt.close(f)    # close the figure window
-    
-    f = plt.figure()
-    plt.subplot(2, 1, 1)
-    plt.title('Nuclei Volumes Slide ' + str(slide) + ' Before and After Filtering')
-    plt.hist(kptn_data_all['Nuclei - Nucleus Volume [µm³]'], bins = 100)
-    plt.subplot(2, 1, 2)
-    plt.hist(volumes, bins = 100)
-    plt.show()
-    f.savefig("figures/" + slideNames[slide] + "/" + "_NucleiVolumes.png", bbox_inches='tight')
-    plt.close(f) 
     
     # Make some plots to get overview of data:
 
@@ -85,84 +67,65 @@ for slide in range(35):
         if abs(kptn_data[i,1] - kptn_data[i-1,1]) > 1000:
             count = count + 1
         sectionNumber[i] = count
-
-    for section in np.unique(sectionNumber):
-        # Save location of remaining nuclei:
-        nucleiPositions = {"x_position": kptn_data[sectionNumber == section,0], "y_position": kptn_data[sectionNumber == section,1]}
-        pickle_out = open("data/" + slideNames[slide] + 'Section' + str(section) + '_NucleixyPositions.pickle',"wb")
-        pickle.dump(nucleiPositions, pickle_out)
-        pickle_out.close()
-
-    for section in np.unique(sectionNumber):
-        fig = plt.figure()
-        fig.set_size_inches(10, 10)
-        plt.subplot(5, 1, 1)
-        plt.hist(kptn_data_log[sectionNumber == section,0], bins = 100)
-        plt.gca().set_title('Intensity Distribution Channel ' + channelOrder[0])
-        plt.subplot(5, 1, 2)
-        plt.hist(kptn_data_log[sectionNumber == section,1], bins = 100)
-        plt.gca().set_title('Intensity Distribution Channel ' + channelOrder[1])
-        plt.subplot(5, 1, 3)
-        plt.hist(kptn_data_log[sectionNumber == section,2], bins = 100)
-        plt.gca().set_title('Intensity Distribution Channel ' + channelOrder[2])
-        plt.subplot(5, 1, 4)
-        plt.hist(kptn_data_log[sectionNumber == section,3], bins = 100)
-        plt.gca().set_title('Intensity Distribution Channel ' + channelOrder[3])
-        plt.subplot(5, 1, 5)
-        plt.hist(kptn_data_log[sectionNumber == section,4], bins = 100)
-        plt.gca().set_title('Intensity Distribution Channel ' + channelOrder[4])
-        plt.show()
-        fig.savefig("figures/" + slideNames[slide] + "/" + "section" + str(section) + "_IntensityDistributions.png", bbox_inches='tight')
-        plt.close(fig) 
-    
-    # Run GaussianMixture model for each section and channel separatly:
-
-    data = kptn_data_log
+        
+    # Run GaussianMixture model:
+    section = 1
+    data = kptn_data[sectionNumber == section,2:]
     n_samples = np.shape(data)[0]
     n_dimensions = np.shape(data)[1]
     n_components = 6
-    alpha = np.array(((2,1),(10,1), (10,1), (10,1), (2,1)))
-
-    for section in np.unique(sectionNumber):
+    alpha = np.array((10,5,5,5,10,10))
+    
+    # Make some informative prior about mean, variance and crosstalk:
+    mean_priorMean = np.ones((n_components, n_dimensions))*[np.mean(np.sort(kptn_data_log[:,i])[range(int(np.round(len(kptn_data_log[:,i])/2)))]) for i in range(n_dimensions)]
+    mean_priorSigma = np.ones((n_components, n_dimensions))*0.25
+    sigma_priorMean = np.ones((n_components, n_dimensions))*0.25
+    sigma_priorSigma = np.ones((n_components, n_dimensions))*0.25
+    
+    for i in range(n_dimensions):
+        mean_priorMean[i,i] += 3
+        sigma_priorMean[i,i]  = 1
+        sigma_priorSigma[i,i] = 1
         
-    mean_prior = [[np.mean(data[,i]) for i in range(np.shape(data))]]
+    spectralSignature_priorMean = np.ones((n_dimensions, n_dimensions))*0.1
+    spectralSignature_priorMean[1,4] = 0.25
+    spectralSignature_priorMean[4,1] = 0.25 # i.e. expect significant bleedthrough/crosstalk between 490LS and 425
+    spectralSignature_priorSigma = np.ones((n_dimensions, n_dimensions))*0.1
+    for i in range(n_dimensions):
+        spectralSignature_priorMean[i,i] = 1
+    spectralSignature_priorMean = spectralSignature_priorMean/np.sum(spectralSignature_priorMean, axis = 0)
         
-            # Log likelihood of normal distribution
-        def logp_normal(mu, tau, value):
-            # log probability of individual samples
-            k = tau.shape[0]
-            delta = lambda mu: value - mu
-            return (-1 / 2.) * (k * tt.log(2 * np.pi) + tt.log(1./det(tau)) +
-                                 (delta(mu).dot(tau) * delta(mu)).sum(axis=1))
-
-        # Log likelihood of Gaussian mixture distribution
-        def logp_gmix(mus, pi, tau):
-            def logp_(value):        
-                logps = [tt.log(pi[i]) + logp_normal(mu, tau, value)
-                         for i, mu in enumerate(mus)]
-
-                return tt.sum(logsumexp(tt.stacklists(logps)[:, :n_samples], axis=0))
-
-            return logp_
+    
+    def logp_normal(mu, sigma, value):
+    # log probability of individual samples in multivariate normal with diagonal covariance
+        return tt.sum([-1/2*(math.log(2*math.pi) + tt.log(sigma[i]**2)) - ((value-mu[i])**2)/(2 * (sigma[i]**2)) for i in range(2)])
+    
+    # Log likelihood of Gaussian mixture distribution with diagonal covariance
+    def logp_gmix(mus, pi, sigmas):
+        def logp_(value):
+            logps = [tt.log(pi[i]) + logp_normal(mus[i], sigmas[i], value)
+                     for i in range(3)]
+            return tt.sum(logsumexp(tt.stacklists(logps), axis=0))
+        return logp_
 
         with pm.Model() as model:
-            mus = [MvNormal('mu_%d' % i, 
-                            mu=pm.floatX(np.zeros(2)), 
-                            tau=pm.floatX(0.1 * np.eye(2)), 
-                            shape=(2,))
-                   for i in range(2)]
-            w = Dirichlet('w', a=pm.floatX(0.1 * np.ones(2)), shape=(2,))
-            xs = DensityDist('x', logp_gmix(mus, w, np.eye(2)), observed=data)
-
+            w = pm.Dirichlet('w', alpha)
+            mus = pm.Normal('mu', mu = mean_priorMean, sigma = mean_priorSigma, shape = (n_components, n_dimensions))
+            sigmas = pm.Gamma('sigma', mu = sigma_priorMean, sigma = sigma_priorSigma, shape = (n_components, n_dimensions))
+            c = pm.Normal('c', mu = spectralSignature_priorMean, sigma = spectralSignature_priorSigma, shape = (n_dimensions, n_dimensions))
+            prior = sample_prior(samples = 1000)
+            data_corrected = tt.log(tt.dot(data,tt.inv(c)))
+            x = pm.DensityDist('x', logp_gmix(mus, w, sigmas), observed=data_corrected)
+            
             # Plot prior for some parameters:
             f = plt.figure()
-            plt.hist(prior['mu'])
+            plt.hist(prior['mu'][:,:,0])
             plt.show()
             f.savefig("figures/" + slideNames[slide] + "/" + "muPriorSection" + str(section) + "channel" + str(channel) + ".png", bbox_inches='tight')
             plt.close(f) 
             
             f = plt.figure()
-            plt.hist(prior['sigma'])
+            plt.hist(prior['taus_0'][:,1])
             plt.show()
             f.savefig("figures/" + slideNames[slide] + "/" + "sigmaPriorSection" + str(section) + "channel" + str(channel) + ".png", bbox_inches='tight')
             plt.close(f) 
@@ -175,7 +138,11 @@ for slide in range(35):
 
             # Fit:
             with model:
-                advi_fit = pm.fit(n=10000, obj_optimizer=pm.adagrad(learning_rate=1e-1), method = 'advi')  
+                advi_fit = pm.fit(n=500, obj_optimizer=pm.adagrad(learning_rate=1e-1), method = 'advi')
+                
+            # Sample:
+            with model:
+                %time hmc_trace = pm.sample(draws=20, tune=50, cores=15)
 
             # Show results advi:
             f = plt.figure()
@@ -187,14 +154,53 @@ for slide in range(35):
             plt.close(f) 
             advi_trace = advi_fit.sample(10000)
             pm.summary(advi_trace, include_transformed=False)
+            # Plot of all component distributions in each channel
+            f, axis = plt.subplots(n_components,n_dimensions, figsize=(n_components*2.5,n_dimensions*2.5))
+            plt.rcParams['axes.titlesize'] = 10
+            plt.rcParams['axes.facecolor'] = 'white'
+            dotSize = 0.5
+            colours = ('gold', 'pink','green', 'red', 'blue')
+            x_min = 6
+            x_max = 12
+            x = np.linspace(x_min, x_max, 100)
+            for i in range(n_components):
+                for j in range(n_dimensions):
+                    axis[i,j].plot(x, scipy.stats.norm.pdf(x,np.mean(advi_trace.get_values('mu')[:,i,j]), np.mean(advi_trace.get_values('sigma')[:,i,j])), color=colours[j])
+            mean_posteriorMean = np.zeros((n_components,n_dimensions))
+            for i in range(n_components):
+                for j in range(n_dimensions):
+                    mean_posteriorMean[i,j] = np.mean(advi_trace.get_values('mu')[:,i,j])
+                    
+                    
+            # Show results hmc:
+            f, axis = plt.subplots(n_components,n_dimensions, figsize=(n_components*2.5,n_dimensions*2.5))
+            plt.rcParams['axes.titlesize'] = 10
+            plt.rcParams['axes.facecolor'] = 'white'
+            dotSize = 0.5
+            colours = ('gold', 'pink','green', 'red', 'blue')
+            x_min = 6
+            x_max = 12
+            x = np.linspace(x_min, x_max, 100)
+            for i in range(n_components):
+                for j in range(n_dimensions):
+                    axis[i,j].plot(x, scipy.stats.norm.pdf(x,np.mean(hmc_trace.get_values('mu')[:,i,j]), np.mean(hmc_trace.get_values('sigma')[:,i,j])), color=colours[j])
+            mean_posteriorMean = np.zeros((n_components,n_dimensions))
+            for i in range(n_components):
+                for j in range(n_dimensions):
+                    mean_posteriorMean[i,j] = np.mean(hmc_trace.get_values('mu')[:,i,j])
+                    
 
             # Save trace means:
-            advi_data = {"advi_mu_0": np.mean(advi_trace.get_values('mu')[:,0]), "advi_mu_1": np.mean(advi_trace.get_values('mu')[:,0]),
-                   "advi_sigma_0": np.mean(advi_trace.get_values('sigma')[:,0]), "advi_sigma_1": np.mean(advi_trace.get_values('sigma')[:,1]),
-                   "advi_w_0": np.mean(advi_trace.get_values('w')[:,0]), "advi_w_1": np.mean(advi_trace.get_values('w')[:,1])}
+            advi_mus = np.array([[np.mean(advi_trace.get_values('mu')[:,i,j]) for i in range(n_components)] for j in range(n_dimensions)])
+            advi_sigmas = np.array([[np.mean(advi_trace.get_values('sigma')[:,i,j]) for i in range(n_components)] for j in range(n_dimensions)])
+            advi_w = np.array([np.mean(advi_trace.get_values('w')[:,i]) for i in range(n_components)])
+            advi_data = {"advi_mu": advi_mus,
+                         "advi_sigma": advi_sigmas,
+                         "advi_w": advi_w}
             pickle_out = open("data/" + slideNames[slide] + '_AdviFitResults.pickle',"wb")
             pickle.dump(advi_data, pickle_out)
             pickle_out.close()
+            
 
             # Calculate class membership, by using advi_trace and logp_normal function:                            
             confidenceThreshold = 0.66
