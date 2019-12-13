@@ -31,7 +31,7 @@ for path, subdirs, files in os.walk(root):
         if fnmatch(name, pattern):
             allFiles.append(os.path.join(path, name))   
             
-chunkID = 2 #sys.argv[1]
+chunkID = 0 #sys.argv[1]
 chunkSize = 5
 chunks = [range(len(allFiles))[i:i + chunkSize] for i in range(0, len(allFiles), chunkSize)]              
         
@@ -46,9 +46,9 @@ for i in chunks[int(chunkID)]:
     cortexData = pickle.load(file)
     file.close()
         
-    # Run GaussianMixture model:
-    n_samples = np.shape(cortexData)[0]
+    # Run GaussianMixture model (only on cortex data):
     data = np.array(cortexData[cortexData.columns[16:21]])
+    data = data[cortexData['Hemisphere'] != 0,:]
     n_samples = np.shape(data)[0]
     dimensions = np.shape(data)[1]
     alpha = np.array(((2,1),(10,1), (10,1), (10,1), (2,1)))
@@ -124,7 +124,7 @@ for i in chunks[int(chunkID)]:
         # i.e. a value of 2 corresponds to a classification below our confidence threshold, unlike values 0 or 1
 
         # Class membership classification:
-        pickle_out = open("data/celltypeProbabilities/" + cortexData['SlideName'][0] + 'Section' + cortexData['Section'][0] + "Classification-" + celltypeOrder[channel] + '.pickle',"wb")
+        pickle_out = open("data/celltypeProbabilities/CortexOnly_" + cortexData['SlideName'][0] + 'Section' + cortexData['Section'][0] + "Classification-" + celltypeOrder[channel] + '.pickle',"wb")
         pickle.dump(normalizedProbs, pickle_out)
         pickle_out.close()
 
