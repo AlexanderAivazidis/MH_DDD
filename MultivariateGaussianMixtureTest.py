@@ -82,17 +82,11 @@ with pm.Model() as model:
     xs = DensityDist('x', logp_gmix(mus, pi, taus, n_components), observed=data)
     
 with model:
-    %time advi_fit = pm.fit(n=10, obj_optimizer=pm.adagrad(learning_rate=1e-1))
-   
-pickle_out = open("advi_fit.pickle","wb")
-pickle.dump(advi_fit, pickle_out)
-pickle_out.close()    
+    advi_fit = pm.fit(n=1000, obj_optimizer=pm.adagrad(learning_rate=1e-1))  
     
-# # Show results advi:
-# f = plt.figure()
-# advi_elbo = pd.DataFrame(
-#     {'log-ELBO': -np.log(advi_fit.hist),
-#      'n': np.arange(advi_fit.hist.shape[0])})
-# _ = sns.lineplot(y='log-ELBO', x='n', data=advi_elbo)
-# advi_trace = advi_fit.sample(10000)
-# pm.summary(advi_trace, include_transformed=False)
+advi_trace = advi_fit.sample(10000)    
+advi_summary = pm.summary(advi_trace, include_transformed=False)
+    
+pickle_out = open("advi_summary.pickle","wb")
+pickle.dump(advi_summary, pickle_out)
+pickle_out.close()
