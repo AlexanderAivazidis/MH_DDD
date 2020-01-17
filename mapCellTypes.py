@@ -13,6 +13,7 @@ from pymc3.math import logsumexp
 import theano
 from pymc3 import Normal, Metropolis, sample, MvNormal, Dirichlet, \
     DensityDist, find_MAP, NUTS, Slice
+
 from theano.tensor.nlinalg import det
 import seaborn as sns
 from pymc3Utils import sample_prior, exp_normalize
@@ -72,13 +73,8 @@ def logp_gmix(mus, pi, taus, n_components):
         return tt.sum(logsumexp(tt.stacklists(logps)[:, :n_samples], axis=0))
     return logp_
 
-## Prior for model:
-
-componentMean = ms + np.random.uniform(0,2,5)
-componentTau = 1 * np.eye(n_dimensions)
-
 with pm.Model() as model:
-    mus = MvNormal('mu', mu=pm.floatX(componentMean), tau=pm.floatX(componentTau), shape=(n_components, n_dimensions))
+    mus = MvNormal('mu', mu=pm.floatX(np.zeros(n_dimensions)), tau=pm.floatX(0.1 * np.eye(n_dimensions)), shape=(n_components, n_dimensions))
     pi = Dirichlet('pi', a=pm.floatX(0.1 * np.ones(n_components)), shape=(n_components,))
     packed_L = [pm.LKJCholeskyCov('packed_L_%d' % i, n=n_dimensions, eta=2., sd_dist=pm.HalfCauchy.dist(2.5)) for i in range(n_components)]
     L = [pm.expand_packed_triangular(n_dimensions, packed_L[i]) for i in range(n_components)]
@@ -87,7 +83,7 @@ with pm.Model() as model:
     xs = DensityDist('x', logp_gmix(mus, pi, taus, n_components), observed=data)
     
 with model:
-    advi_fit = pm.fit(n=30000, obj_optimizer=pm.adagrad(learning_rate=1e-1))  
+    advi_fit = pm.fit(n=1000, obj_optimizer=pm.adagrad(learning_rate=1e-1))  
     
 advi_trace = advi_fit.sample(10000)    
 advi_summary = pm.summary(advi_trace, include_transformed=False)

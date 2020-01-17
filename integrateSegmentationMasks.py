@@ -47,7 +47,7 @@ plt.ylabel('total number of nuclei')
 f.savefig("figures/NucsleiNumbersVsZposition.png", bbox_inches='tight')  
 plt.close(f)    # close the figure window
 
-# Classify nuclei into regions: Left hemisphere, right hemisphere, bubbles
+# Classify nuclei into regions: Left hemisphere, right hemisphere, bubbles:
 
 numberOfSections = 0
 for i in range(np.shape(nucleiNumbers)[0]):
@@ -181,15 +181,18 @@ for i in range(np.shape(nucleiNumbers)[0]):
         offset = np.array(offset)[0]
         sectionNumber = nucleiNumbers['Section'][i]
         cortex = np.zeros(len(nuclei_positions['x_position']))
+        positions =  nested_lookup('position', segmentationMasks)
+        wm_masks = nested_lookup('wm', segmentationMasks)
+        pia_masks = nested_lookup('pia', segmentationMasks)
         # Left Hemisphere:
-        firstSplit = str.split(segmentationMasks['slices'][(2*sectionNumber)-2]['rois']['position'][0], ';')
+        firstSplit = str.split(positions[(2*sectionNumber)-2][0], ';')
         polygon = Polygon(np.asarray([str.split(firstSplit[i], ' ') for i in range(len(firstSplit))]).astype(np.float))
         for j in range(len(cortex)):
             point = Point(nuclei_positions['x_position'][j]/1000+offset[0], nuclei_positions['y_position'][j]/1000+offset[1])
             if polygon.contains(point):
                 cortex[j] = 1  
         # Right Hemisphere:
-        firstSplit = str.split(segmentationMasks['slices'][(2*sectionNumber)-1]['rois']['position'][0], ';')
+        firstSplit = str.split(positions[(2*sectionNumber)-1][0], ';')
         polygon = Polygon(np.asarray([str.split(firstSplit[i], ' ') for i in range(len(firstSplit))]).astype(np.float))
         for j in range(len(cortex)):
             point = Point(nuclei_positions['x_position'][j]/1000+offset[0], nuclei_positions['y_position'][j]/1000 + offset[1])
@@ -333,39 +336,39 @@ f.colorbar(points)
 f.savefig("figures/NaturalCoordinatesCortex.png", bbox_inches='tight')  
 plt.close(f)    # close the figure window
 
-# Make a plot of total number of nuclei in cortex for captain and wt as function of z:
-totalNumber = np.zeros(numberOfSections)
-colour = np.repeat('black', numberOfSections)
-count = -1
-zPositions = np.zeros(numberOfSections)
+# # Make a plot of total number of nuclei in cortex for captain and wt as function of z:
+# totalNumber = np.zeros(numberOfSections)
+# colour = np.repeat('black', numberOfSections)
+# count = -1
+# zPositions = np.zeros(numberOfSections)
 
-for i in range(np.shape(nucleiNumbers)[0]):
-    if os.path.exists("data/segmentationMasks/" + nucleiNumbers['AlternativeSlideName'][i] + '_CTX.yml'):
-        file = open("data/nucleiPositions/" + np.unique(measurementNames)[int(np.where(np.array(np.unique(slideNames)) == np.array(nucleiNumbers['SlideName'])[i])[0])] + 'Section' + str(np.array(nucleiNumbers['Section'])[i])+ '_NucleixyPositions.pickle', 'rb')
-        nuclei_positions = pickle.load(file)
-        file.close()
-        count += 1
-        print(i)
-        with open("data/segmentationMasks/" + nucleiNumbers['AlternativeSlideName'][i] + '_CTX.yml', 'r') as stream:
-                segmentationMasks = yaml.safe_load(stream)
-        offset = pd.read_csv("data/segmentationMasks/" + nucleiNumbers['AlternativeSlideName'][i] + '_offset.txt', header = None)
-        offset = np.array(offset)[0]
-        sectionNumber = nucleiNumbers['Section'][i]
-        cortex = np.zeros(len(nuclei_positions['x_position']))
-        # Left Hemisphere:
-        firstSplit = str.split(segmentationMasks['slices'][(2*sectionNumber)-2]['rois']['position'][0], ';')
-        polygon = Polygon(np.asarray([str.split(firstSplit[i], ' ') for i in range(len(firstSplit))]).astype(np.float))
-        for j in range(len(cortex)):
-            point = Point(nuclei_positions['x_position'][j]/1000+offset[0], nuclei_positions['y_position'][j]/1000+offset[1])
-            if polygon.contains(point):
-                cortex[j] = 1  
-        # Right Hemisphere:
-        firstSplit = str.split(segmentationMasks['slices'][(2*sectionNumber)-1]['rois']['position'][0], ';')
-        polygon = Polygon(np.asarray([str.split(firstSplit[i], ' ') for i in range(len(firstSplit))]).astype(np.float))
-        for j in range(len(cortex)):
-            if polygon.contains(point):
-                cortex[j] = 2  
-        if metaData['Genotype'][i] == 'Kptn:Hom':
-            colour[count] = 'red'
-        totalNumber[count] = sum(cortex == 1) + sum(cortex == 2)
-        zPositions[count] = np.array(metaData['Figure Number - Sectioning'])[i]
+# for i in range(np.shape(nucleiNumbers)[0]):
+#     if os.path.exists("data/segmentationMasks/" + nucleiNumbers['AlternativeSlideName'][i] + '_CTX.yml'):
+#         file = open("data/nucleiPositions/" + np.unique(measurementNames)[int(np.where(np.array(np.unique(slideNames)) == np.array(nucleiNumbers['SlideName'])[i])[0])] + 'Section' + str(np.array(nucleiNumbers['Section'])[i])+ '_NucleixyPositions.pickle', 'rb')
+#         nuclei_positions = pickle.load(file)
+#         file.close()
+#         count += 1
+#         print(i)
+#         with open("data/segmentationMasks/" + nucleiNumbers['AlternativeSlideName'][i] + '_CTX.yml', 'r') as stream:
+#                 segmentationMasks = yaml.safe_load(stream)
+#         offset = pd.read_csv("data/segmentationMasks/" + nucleiNumbers['AlternativeSlideName'][i] + '_offset.txt', header = None)
+#         offset = np.array(offset)[0]
+#         sectionNumber = nucleiNumbers['Section'][i]
+#         cortex = np.zeros(len(nuclei_positions['x_position']))
+#         # Left Hemisphere:
+#         firstSplit = str.split(segmentationMasks['slices'][(2*sectionNumber)-2]['rois']['position'][0], ';')
+#         polygon = Polygon(np.asarray([str.split(firstSplit[i], ' ') for i in range(len(firstSplit))]).astype(np.float))
+#         for j in range(len(cortex)):
+#             point = Point(nuclei_positions['x_position'][j]/1000+offset[0], nuclei_positions['y_position'][j]/1000+offset[1])
+#             if polygon.contains(point):
+#                 cortex[j] = 1  
+#         # Right Hemisphere:
+#         firstSplit = str.split(segmentationMasks['slices'][(2*sectionNumber)-1]['rois']['position'][0], ';')
+#         polygon = Polygon(np.asarray([str.split(firstSplit[i], ' ') for i in range(len(firstSplit))]).astype(np.float))
+#         for j in range(len(cortex)):
+#             if polygon.contains(point):
+#                 cortex[j] = 2  
+#         if metaData['Genotype'][i] == 'Kptn:Hom':
+#             colour[count] = 'red'
+#         totalNumber[count] = sum(cortex == 1) + sum(cortex == 2)
+#         zPositions[count] = np.array(metaData['Figure Number - Sectioning'])[i]

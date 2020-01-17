@@ -1,0 +1,42 @@
+### Test Preliminary analysis
+
+setwd('/home/jovyan/MH_DDD/')
+
+tab = read.delim('data/KptnMouse/RNAscope/Objects_Population-Nuclei-Method2.txt', sep = '\t', skip = 9)
+
+plot(tab$Position.X..µm., tab$Position.Y..µm.)
+hist(log(tab$Nuclei...Intensity.Nucleus.Alexa.488.Sum))
+hist(log(tab$Nuclei...Intensity.Nucleus.Alexa.568.Sum))
+hist(log(tab$Nuclei...Intensity.Nucleus.Alexa.647.Sum))
+hist(log(tab$Nuclei...Intensity.Nucleus.Atto.425.Sum))
+hist(log(tab$Nuclei...Intensity.Nucleus.Atto.490LS.Sum))
+
+tab = t(tab)
+colnames(tab) = as.character(1:dim(tab)[2])
+
+intensityFeatures = c('Nuclei...Intensity.Nucleus.Alexa.488.Sum', 'Nuclei...Intensity.Nucleus.Alexa.568.Sum', 
+             'Nuclei...Intensity.Nucleus.Alexa.647.Sum', 'Nuclei...Intensity.Nucleus.Atto.425.Sum',
+             'Nuclei...Intensity.Nucleus.Atto.490LS.Sum','Nuclei...Intensity.Nucleus.Alexa.488.Maximum', 'Nuclei...Intensity.Nucleus.Alexa.568.Maximum', 
+             'Nuclei...Intensity.Nucleus.Alexa.647.Maximum', 'Nuclei...Intensity.Nucleus.Atto.425.Maximum',
+             'Nuclei...Intensity.Nucleus.Atto.490LS.Maximum')
+
+features = rownames(tab)[15:62]
+
+intensityTab = CreateSeuratObject(tab[features,])
+
+intensityTab = ScaleData(intensityTab)
+intensityTab = RunPCA(intensityTab, features = features)
+intensityTab = RunUMAP(intensityTab, dims = 1:4)
+UMAPPlot(intensityTab)
+featurePlots = list()
+for (i in 1:length(intensityFeatures)){
+  print(f)
+  featurePlots[[i]] = FeaturePlot(intensityTab, features = intensityFeatures[[i]])
+}
+p = cowplot::plot_grid(featurePlots[[1]], featurePlots[[2]], featurePlots[[3]], featurePlots[[4]], 
+                   featurePlots[[5]], featurePlots[[6]], featurePlots[[7]], featurePlots[[8]], 
+                   featurePlots[[9]], featurePlots[[10]])
+
+pdf(file = 'figures/UMAP_PreliminaryTrial1_allFeatures.pdf', width = 20, height = 10)
+print(p)
+dev.off()
