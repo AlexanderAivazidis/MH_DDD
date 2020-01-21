@@ -4,7 +4,6 @@ import numpy as np, pandas as pd, matplotlib.pyplot as plt, seaborn as sns
 sns.set_context('paper')
 sns.set_style('darkgrid')
 import os
-os.chdir('/home/jovyan/MH_DDD/')
 import matplotlib.pyplot as plt; plt.style.use('ggplot')
 from matplotlib import figure
 import pymc3 as pm, theano.tensor as tt
@@ -23,9 +22,9 @@ import pickle
 import math as math
 import scipy.stats
 
-# Test a 2D Gaussian Mixture Model with 6 components, 5 dimensions and unknown variance and covariances
+# Test a 2D Gaussian Mixture Model with 6 components, 5 dimensions and unknown variance and covariances:
 
-n_samples = 50000
+n_samples = 10000
 n_components = 6
 n_dimensions = 5
 ms = np.array(((10,7,8,7,6),(8,9,7,7,6.5),(8,7,9,7,6.5),(8,7,9,10,6.5),(8,7,9,6.5,8),(8,7,9,6.5,6)))
@@ -87,7 +86,7 @@ with pm.Model() as model:
     xs = DensityDist('x', logp_gmix(mus, pi, taus, n_components), observed=data)
     
 with model:
-    advi_fit = pm.fit(n=30000, obj_optimizer=pm.adagrad(learning_rate=1e-1))  
+    advi_fit = pm.fit(n=100000, obj_optimizer=pm.adagrad(learning_rate=1e-1))  
     
 advi_trace = advi_fit.sample(10000)    
 advi_summary = pm.summary(advi_trace, include_transformed=False)
