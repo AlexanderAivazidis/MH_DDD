@@ -73,8 +73,8 @@ def logp_gmix(mus, pi, taus, n_components):
 
 ## Prior for model:
 
-componentMean = ms + np.random.uniform(0,2,5)
-componentTau = 1 * np.eye(n_dimensions)
+componentMean = ms + np.random.uniform(0,5,n_dimensions)
+componentTau = np.random.uniform(0,2,n_dimensions) * np.eye(n_dimensions)
 
 with pm.Model() as model:
     mus = MvNormal('mu', mu=pm.floatX(componentMean), tau=pm.floatX(componentTau), shape=(n_components, n_dimensions))
@@ -86,10 +86,10 @@ with pm.Model() as model:
     xs = DensityDist('x', logp_gmix(mus, pi, taus, n_components), observed=data)
     
 with model:
-    advi_fit = pm.fit(n=100, obj_optimizer=pm.adagrad(learning_rate=1e-1))  
+    advi_fit = pm.fit(n=50000, obj_optimizer=pm.adagrad(learning_rate=1e-1))  
     
 advi_trace = advi_fit.sample(10000)    
-advi_summary = pm.summary(advi_trace, include_transformed=False)
+advi_summary = pm.summary(advi_trace)
     
 pickle_out = open("advi_summary.pickle","wb")
 pickle.dump(advi_summary, pickle_out)
