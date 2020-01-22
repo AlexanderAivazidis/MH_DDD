@@ -24,7 +24,7 @@ import scipy.stats
 
 # Test a 2D Gaussian Mixture Model with 6 components, 5 dimensions and unknown variance and covariances:
 
-n_samples = 10000
+n_samples = 30000
 n_components = 6
 n_dimensions = 5
 ms = np.array(((10,7,8,7,6),(8,9,7,7,6.5),(8,7,9,7,6.5),(8,7,9,10,6.5),(8,7,9,6.5,8),(8,7,9,6.5,6)))
@@ -86,11 +86,11 @@ with pm.Model() as model:
     xs = DensityDist('x', logp_gmix(mus, pi, taus, n_components), observed=data)
     
 with model:
-    advi_fit = pm.fit(n=50000, obj_optimizer=pm.adagrad(learning_rate=1e-1))  
+    advi_fit = pm.fit(n=500000, obj_optimizer=pm.adagrad(learning_rate=1e-1))  
     
 advi_trace = advi_fit.sample(10000)    
 advi_summary = pm.summary(advi_trace)
-    
+
 pickle_out = open("advi_summary.pickle","wb")
 pickle.dump(advi_summary, pickle_out)
 pickle_out.close()
