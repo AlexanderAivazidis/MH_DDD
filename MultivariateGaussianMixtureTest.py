@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt; plt.style.use('ggplot')
 from matplotlib import figure
 import pymc3 as pm, theano.tensor as tt
 from pymc3.math import logsumexp
-#%env THEANO_FLAGS=device=gpu,floatX=float32
+#%env THEANO_FLAGS=device=cuda,floatX=float32
 import theano
 from pymc3 import Normal, Metropolis, sample, MvNormal, Dirichlet, \
     DensityDist, find_MAP, NUTS, Slice
