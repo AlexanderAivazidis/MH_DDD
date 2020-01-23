@@ -1,5 +1,5 @@
-# Import modules and packages:
-%env THEANO_FLAGS=device=cuda,force_device=True, floatX=float32
+# Import modules and packages and remember to set Theano environment:
+#%env THEANO_FLAGS=device=cuda,force_device=True, floatX=float32
 import numpy as np, pandas as pd, matplotlib.pyplot as plt, seaborn as sns
 sns.set_context('paper')
 sns.set_style('darkgrid')
