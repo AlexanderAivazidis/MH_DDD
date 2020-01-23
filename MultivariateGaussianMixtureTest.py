@@ -1,6 +1,6 @@
 # Import modules and packages:
+%env THEANO_FLAGS=device=cuda,force_device=True, floatX=float32
 import numpy as np, pandas as pd, matplotlib.pyplot as plt, seaborn as sns
-#%matplotlib inline
 sns.set_context('paper')
 sns.set_style('darkgrid')
 import os
@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt; plt.style.use('ggplot')
 from matplotlib import figure
 import pymc3 as pm, theano.tensor as tt
 from pymc3.math import logsumexp
-#%env THEANO_FLAGS=device=cuda,force_device=True, floatX=float32
 import theano
 from pymc3 import Normal, Metropolis, sample, MvNormal, Dirichlet, \
     DensityDist, find_MAP, NUTS, Slice
