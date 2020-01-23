@@ -21,6 +21,7 @@ import pickle
 import math as math
 import scipy.stats
 from theano import function, config, shared, sandbox
+import time
 
 # Code to test if theano is using GPU or CPU
 # Reference: https://stackoverflow.com/questions/34328467/how-can-i-use-my-gpu-on-ipython-notebook
