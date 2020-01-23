@@ -100,12 +100,12 @@ with pm.Model() as model:
     pi = Dirichlet('pi', a=pm.floatX(0.1 * np.ones(n_components)), shape=(n_components,))
     packed_L = [pm.LKJCholeskyCov('packed_L_%d' % i, n=n_dimensions, eta=2., sd_dist=pm.HalfCauchy.dist(2.5)) for i in range(n_components)]
     L = [pm.expand_packed_triangular(n_dimensions, packed_L[i]) for i in range(n_components)]
-    sigmas = [pm.Deterministic('sigma_%d' % i, L[i].dot(L[i].T)) for i in range(n_components)]
+    sigmas = [pm.Deterministic('sigma_%d' % i, tt.dot(L[i],L[i].T)) for i in range(n_components)]
     taus = [tt.nlinalg.matrix_inverse(sigmas[i]) for i in range(n_components)]
     xs = DensityDist('x', logp_gmix(mus, pi, taus, n_components), observed=data)
     
 with model:
-    advi_fit = pm.fit(n=500000, obj_optimizer=pm.adagrad(learning_rate=1e-1))  
+    advi_fit = pm.fit(n=500, obj_optimizer=pm.adagrad(learning_rate=1e-1))  
     
 advi_trace = advi_fit.sample(10000)    
 advi_summary = pm.summary(advi_trace)
