@@ -1,5 +1,5 @@
 # Import modules and packages and remember to set Theano environment:
-#%env THEANO_FLAGS=device=cuda,force_device=True, floatX=float32
+#%env THEANO_FLAGS=device=cuda,force_device=True,floatX=float32
 import numpy as np, pandas as pd, matplotlib.pyplot as plt, seaborn as sns
 sns.set_context('paper')
 sns.set_style('darkgrid')
@@ -20,6 +20,25 @@ from fnmatch import fnmatch
 import pickle
 import math as math
 import scipy.stats
+from theano import function, config, shared, sandbox
+
+# Code to test if theano is using GPU or CPU
+# Reference: https://stackoverflow.com/questions/34328467/how-can-i-use-my-gpu-on-ipython-notebook
+vlen = 10 * 30 * 768  # 10 x #cores x # threads per core
+iters = 1000
+rng = np.random.RandomState(22)
+x = shared(np.asarray(rng.rand(vlen), config.floatX))
+f = function([], T.exp(x))
+print(f.maker.fgraph.toposort())
+t0 = time.time()
+for i in range(iters):
+    r = f()
+t1 = time.time()
+print("Looping %d times took %f seconds" % (iters, t1 - t0))
+if np.any([isinstance(x.op, T.Elemwise) for x in f.maker.fgraph.toposort()]):
+    print('Using the CPU :(')
+else:
+    print('Using the GPU :)')
 
 # Test a 2D Gaussian Mixture Model with 6 components, 5 dimensions and unknown variance and covariances:
 
