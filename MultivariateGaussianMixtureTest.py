@@ -113,3 +113,4 @@ advi_summary = pm.summary(advi_trace)
 pickle_out = open("advi_summary.pickle","wb")
 pickle.dump(advi_summary, pickle_out)
 pickle_out.close()
+
