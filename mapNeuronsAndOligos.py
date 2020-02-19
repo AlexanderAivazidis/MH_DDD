@@ -120,19 +120,23 @@ for slide in chunks[int(chunkID)]:
 
         ## Plot prior:
 
-#         # Plot predicted and actual distribution of intensities for each channel:
-#         f, axis = plt.subplots(n_dimensions,1, figsize=(10,10*n_dimensions))
-#         dotSize = 0.5
-#         colours = ('gold', 'pink','green', 'red', 'blue')
-#         x_min = 0
-#         x_max = np.max(data)
-#         x = np.linspace(x_min, x_max, 100)
-#         for i in range(n_dimensions):
-#             axis[i].plot(x, scipy.stats.norm.pdf(x,signalMean_priorMean[i], signalSD_priorMean[i])*1/n_components, color='black', linewidth = 5)
+        # Plot predicted and actual distribution of intensities for each channel:
+        f, axis = plt.subplots(1, n_dimensions, figsize=(5*n_dimensions, 5))
+        dotSize = 0.5
+        colours = ('gold', 'pink','green', 'red', 'blue')
+        x_min = 0
+        x_max = np.max(data)
+        x = np.linspace(x_min, x_max, 100)
+        for i in range(n_dimensions):
+            axis[i].plot(x, scipy.stats.norm.pdf(x,signalMean_priorMean[i], signalSD_priorMean[i])*1/n_components, color='black', linewidth = 2)
 
-#             axis[i].plot(x, scipy.stats.norm.pdf(x,backgroundMean_priorMean[i], backgroundSD_priorMean[i])*(1-1/n_components), color='black', linewidth = 5)
-#             axis[i].hist(data[:,i], density = True, bins = 50)    
-
+            axis[i].plot(x, scipy.stats.norm.pdf(x,backgroundMean_priorMean[i], backgroundSD_priorMean[i])*(1-1/n_components), color='black', linewidth = 2)
+            axis[i].hist(data[:,i], density = True, bins = 50)
+            axis[i].set_title(celltypeOrder[i] + 'Channel')
+            axis[i].set_xlabel('Log2_Intensity')
+            axis[i].set_ylabel('Density')
+        f.savefig('PriorPredictive.png')
+            
 #         ## Model:
 
         # Log likelihood of normal distribution
@@ -188,49 +192,52 @@ for slide in chunks[int(chunkID)]:
     #     _ = sns.lineplot(y='log-ELBO', x='n', data=advi_elbo)
     #     plt.savefig('books_read.png')
 
-    #     pickle_in = open("advi_summary.pickle","rb")
-    #     advi_summary = pickle.load(pickle_in)
+        pickle_in = open("advi_summaries/advi_summary_slide" + str(slide) + 'hemisphere_' + str(hemisphere) + ".pickle","rb")
+        advi_summary = pickle.load(pickle_in)
 
     #     pickle.load('advi_summary.pickle')
 
     #     ## Plot the predicted mean and variance for each component vs. the actual one and also plot the inferred covariance matrices:
 
-    #     meanMatrix = np.empty((n_components, n_dimensions))
-    #     for i in range(n_components):
-    #         for j in range(n_dimensions):
-    #             meanMatrix[i,j] = advi_summary['mean']['mus_background__' + str(j)]
-    #             if i == j:
-    #                 meanMatrix[i,j] = advi_summary['mean']['mus_signal__' + str(j)]
+        meanMatrix = np.empty((n_components, n_dimensions))
+        for i in range(n_components):
+            for j in range(n_dimensions):
+                meanMatrix[i,j] = advi_summary['mean']['mus_background__' + str(j)]
+                if i == j:
+                    meanMatrix[i,j] = advi_summary['mean']['mus_signal__' + str(j)]
 
-    #     sigmaMatrix = np.zeros((n_components,n_dimensions,n_dimensions))
-    #     for i in range(n_components):
-    #         for j in range(n_dimensions):
-    #             sigmaMatrix[i,j,j] = advi_summary['mean']['sigmas_background__' + str(j)]
-    #             if i == j:
-    #                 sigmaMatrix[i,j,j] = advi_summary['mean']['sigmas_signal__' + str(j)]
+        sigmaMatrix = np.zeros((n_components,n_dimensions,n_dimensions))
+        for i in range(n_components):
+            for j in range(n_dimensions):
+                sigmaMatrix[i,j,j] = advi_summary['mean']['sigmas_background__' + str(j)]
+                if i == j:
+                    sigmaMatrix[i,j,j] = advi_summary['mean']['sigmas_signal__' + str(j)]
 
-    #     meanVector = np.empty(n_dimensions)
-    #     for i in range(n_dimensions):
-    #         meanVector[i] = advi_summary['mean']['mus_signal__' + str(i)]
+        meanVector = np.empty(n_dimensions)
+        for i in range(n_dimensions):
+            meanVector[i] = advi_summary['mean']['mus_signal__' + str(i)]
 
-    #     sigmaVector = np.empty(n_dimensions)
-    #     for i in range(n_dimensions):
-    #         sigmaVector[i] = advi_summary['mean']['sigmas_signal__' + str(i)]
+        sigmaVector = np.empty(n_dimensions)
+        for i in range(n_dimensions):
+            sigmaVector[i] = advi_summary['mean']['sigmas_signal__' + str(i)]
 
-    #     weightsVector = np.empty((n_components))
-    #     for i in range(n_components):
-    #         weightsVector[i] = advi_summary['mean']['w__' + str(i)]
+        weightsVector = np.empty((n_components))
+        for i in range(n_components):
+            weightsVector[i] = advi_summary['mean']['w__' + str(i)]
 
-    #     # Plot predicted and actual distribution of intensities for each channel:
-    #     f, axis = plt.subplots(n_dimensions,1, figsize=(10,n_dimensions*10))
-    #     dotSize = 0.5
-    #     colours = ('gold', 'pink','green', 'red', 'blue')
-    #     x_min = 0
-    #     x_max = np.max(data)
-    #     x = np.linspace(x_min, x_max, 100)
-    #     for i in range(n_dimensions):
-    #         axis[i].plot(x, scipy.stats.norm.pdf(x,meanVector[i], sigmaVector[i])*weightsVector[i], color='black', linewidth = 5)
-    #         axis[i].plot(x, scipy.stats.norm.pdf(x,advi_summary['mean']['mus_background__' + str(i)], 
-    #         advi_summary['mean']['sigmas_background__' + str(i)])*sum(weightsVector[np.arange(len(weightsVector))!=i]), color='black', linewidth = 5)
-
-    #         axis[i].hist(data[:,i], density = True, bins = 50)
+        # Plot predicted and actual distribution of intensities for each channel:
+        f, axis = plt.subplots(1,n_dimensions, figsize=(n_dimensions*5, 5))
+        dotSize = 0.5
+        colours = ('gold', 'pink','green', 'red', 'blue')
+        x_min = 0
+        x_max = np.max(data)
+        x = np.linspace(x_min, x_max, 100)
+        for i in range(n_dimensions):
+            axis[i].plot(x, scipy.stats.norm.pdf(x,meanVector[i], sigmaVector[i])*weightsVector[i], color='black', linewidth = 2)
+            axis[i].plot(x, scipy.stats.norm.pdf(x,advi_summary['mean']['mus_background__' + str(i)], 
+            advi_summary['mean']['sigmas_background__' + str(i)])*sum(weightsVector[np.arange(len(weightsVector))!=i]), color='black', linewidth = 2)
+            axis[i].set_title(celltypeOrder[i] + 'Channel')
+            axis[i].hist(data[:,i], density = True, bins = 50)
+            axis[i].set_xlabel('Log2_Intensity')
+            axis[i].set_ylabel('Density')
+        f.savefig('PosteriorPredictive.png')
